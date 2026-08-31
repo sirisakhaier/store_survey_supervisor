@@ -9,7 +9,7 @@ import {
 import {
   handleAdminVisits, handleAdminVisitDetail, handleAdminReview,
   handleAdminStats, handleAdminSupervisors, handleAdminStores,
-  handleAdminImportCSV, handleAdminExport, handleAdminDeleteVisit,
+  handleAdminImportCSV, handleAdminExport, handleAdminDeleteStore,
   handleAdminUpdateSupervisor, handleAdminDeleteSupervisor,
 } from './admin';
 
@@ -154,7 +154,7 @@ export async function handleApiRequest(request, env, ctx) {
     const unauth = requireAdmin(request, env);
     if (unauth) return unauth;
     const shopCode = decodeURIComponent(path.replace('/api/admin/stores/', ''));
-    return json(await handleAdminDeleteVisit(env.DB, shopCode));
+    return json(await handleAdminDeleteStore(env.DB, shopCode));
   }
 
   // Admin review (approve/reject)
