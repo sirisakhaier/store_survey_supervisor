@@ -4,7 +4,7 @@
  */
 
 // ========== Configuration ==========
-const API = '';  // Using relative URLs — proxied via _redirects to worker
+const API = 'https://haier-store-visit-api.sirisak-haier.workers.dev';
 let adminToken = localStorage.getItem('adminToken') || '';
 let selectedSupervisor = null;
 let selectedCustomer = null;
