@@ -387,3 +387,250 @@ function parseCSVLine(line) {
   result.push(current);
   return result;
 }
+
+// ====== NEW: Serve photo from R2 ======
+export async function handleServePhoto(request, env, r2Key) {
+  try {
+    const object = await env.PHOTOS.get(r2Key);
+    if (!object) {
+      return new Response('Photo not found', { status: 404 });
+    }
+    const headers = new Headers();
+    object.writeHttpMetadata(headers);
+    headers.set('etag', object.httpEtag);
+    headers.set('Cache-Control', 'public, max-age=31536000');
+    return new Response(object.body, { headers });
+  } catch (err) {
+    return new Response('Error serving photo', { status: 500 });
+  }
+}
+
+// ====== NEW: Export stores as CSV ======
+export async function handleAdminExportStores(db) {
+  const rows = await queryAll(db, 'SELECT * FROM stores ORDER BY shop_name ASC');
+
+  const header = 'Shop Name,Shop Code,Store ID,Channel,Area Sup,Customer Name,Customer Code,Sales Org,REGION,Channel Lv1,Channel Lv2';
+
+  const csvRows = rows.map(r => {
+    // Find customer name
+    const custName = (r.customer_name || '').replace(/"/g, '""');
+    const shopName = (r.shop_name || '').replace(/"/g, '""');
+    return `"${shopName}","${r.shop_code}","${r.store_id || ''}","${r.channel || ''}","${r.area_sup || ''}","${custName}","${r.customer_code}","${r.sales_org || ''}","${r.region || ''}","${r.channel_lv1 || ''}","${r.channel_lv2 || ''}"`;
+  });
+
+  const csv = [header, ...csvRows].join('\n');
+
+  return new Response(csv, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="dimension-stores-export.csv"',
+    },
+  });
+}
+
+// ====== NEW: Import stores with replace-all ======
+export async function handleAdminImportStoresReplace(request, db) {
+  const formData = await request.formData();
+  const file = formData.get('file');
+  if (!file) return { error: 'No file uploaded' };
+
+  const text = await file.text();
+  const lines = text.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return { error: 'CSV must have a header row and at least one data row' };
+
+  const headers = parseCSVLine(lines[0]);
+  const requiredFields = ['Shop Name', 'Shop Code', 'Customer Name', 'Customer Code'];
+  const missing = requiredFields.filter(f => !headers.includes(f));
+  if (missing.length > 0) {
+    return { error: `Missing required columns: ${missing.join(', ')}` };
+  }
+
+  const nameIdx = headers.indexOf('Shop Name');
+  const codeIdx = headers.indexOf('Shop Code');
+  const custNameIdx = headers.indexOf('Customer Name');
+  const custCodeIdx = headers.indexOf('Customer Code');
+  const channelIdx = headers.indexOf('Channel');
+  const areaSupIdx = headers.indexOf('Area Sup');
+  const salesOrgIdx = headers.indexOf('Sales Org');
+  const regionIdx = headers.indexOf('REGION');
+  const lv1Idx = headers.indexOf('Channel Lv1');
+  const lv2Idx = headers.indexOf('Channel Lv2');
+  const storeIdIdx = headers.indexOf('Store ID');
+
+  // Step 1: Delete all existing stores and customers
+  await execute(db, 'DELETE FROM stores');
+  await execute(db, 'DELETE FROM customers');
+
+  // Step 2: Insert new data
+  let imported = 0;
+  const statements = [];
+  const seenCustomers = new Set();
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 4) continue;
+
+    const shopCode = (cols[codeIdx] || '').trim();
+    const shopName = (cols[nameIdx] || '').trim();
+    const custName = (cols[custNameIdx] || '').trim();
+    const custCode = (cols[custCodeIdx] || '').trim();
+
+    if (!shopCode || !shopName) continue;
+
+    // Insert customer (deduplicate)
+    if (custCode && custName && !seenCustomers.has(custCode)) {
+      seenCustomers.add(custCode);
+      statements.push(
+        db.prepare(
+          'INSERT INTO customers (customer_code, customer_name) VALUES (?, ?)'
+        ).bind(custCode, custName)
+      );
+    }
+
+    // Insert store
+    statements.push(
+      db.prepare(
+        `INSERT INTO stores (shop_code, shop_name, store_id, channel, area_sup, customer_code, sales_org, region, channel_lv1, channel_lv2)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        shopCode, shopName,
+        (cols[storeIdIdx] || '').trim(),
+        (cols[channelIdx] || '').trim(),
+        (cols[areaSupIdx] || '').trim(),
+        custCode,
+        (cols[salesOrgIdx] || '').trim(),
+        (cols[regionIdx] || '').trim(),
+        (cols[lv1Idx] || '').trim(),
+        (cols[lv2Idx] || '').trim()
+      )
+    );
+
+    imported++;
+
+    if (statements.length >= 50) {
+      await db.batch(statements);
+      statements.length = 0;
+    }
+  }
+
+  if (statements.length > 0) {
+    await db.batch(statements);
+  }
+
+  return { imported, customers: seenCustomers.size };
+}
+
+// ====== NEW: Export visits as Excel (HTML format with photo thumbnails) ======
+export async function handleAdminExportExcel(db, params) {
+  let sql = `
+    SELECT v.id, sup.name as supervisor_name, c.customer_name,
+           s.shop_name, s.shop_code, s.region, s.channel, s.channel_lv1, s.channel_lv2,
+           v.visit_datetime, v.status, v.review_comment, v.submitted_at,
+           v.form_json
+    FROM visits v
+    LEFT JOIN supervisors sup ON v.supervisor_id = sup.id
+    LEFT JOIN stores s ON v.shop_code = s.shop_code
+    LEFT JOIN customers c ON v.customer_code = c.customer_code
+    WHERE 1=1`;
+  const vals = [];
+
+  if (params.get('status')) {
+    sql += ' AND v.status = ?';
+    vals.push(params.get('status'));
+  }
+  if (params.get('date_from')) {
+    sql += ' AND v.visit_datetime >= ?';
+    vals.push(params.get('date_from'));
+  }
+  if (params.get('date_to')) {
+    sql += ' AND v.visit_datetime <= ?';
+    vals.push(params.get('date_to'));
+  }
+
+  sql += ' ORDER BY v.submitted_at DESC';
+
+  const rows = await queryAll(db, sql, vals);
+
+  // Build HTML table that Excel can open (.xls)
+  let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+                xmlns:x="urn:schemas-microsoft-com:office:excel"
+                xmlns="http://www.w3.org/TR/REC-html40">
+  <head><meta charset="UTF-8">
+  <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+  <x:Name>Sheet1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+  </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+  <style>
+    table { border-collapse: collapse; font-size: 11px; font-family: Arial; }
+    th, td { border: 1px solid #999; padding: 4px 6px; vertical-align: top; }
+    th { background: #004EA2; color: white; }
+    .thumb { width: 80px; height: 80px; object-fit: cover; }
+  </style>
+  </head><body><table>
+  <tr>
+    <th>ID</th><th>Supervisor</th><th>Customer</th><th>Store</th><th>Shop Code</th>
+    <th>Region</th><th>Visit Date</th><th>Status</th><th>Review Comment</th>
+    <th>Channel/Zone</th><th>PC Name</th><th>Note</th>
+    <th>%Ach.</th><th>Haier Trend</th><th>Situation</th>
+    <th>Key Finding</th><th>Action</th><th>Follow Up</th>
+    <th>Issue</th><th>Cause</th><th>Solution</th><th>Responsible</th>
+    <th>GM Meeting</th><th>Photos</th>
+  </tr>`;
+
+  for (const row of rows) {
+    const fj = JSON.parse(row.form_json || '{}');
+    const s2 = fj.section2 || {};
+    const s6 = fj.section6 || {};
+    const s4 = fj.section4 || {};
+    const s5 = fj.section5 || {};
+    const header = fj.header || {};
+
+    // Get photos for this visit
+    const photoRows = await queryAll(
+      db,
+      'SELECT * FROM visit_photos WHERE visit_id = ? ORDER BY category, id',
+      [row.id]
+    );
+
+    const photoHtml = photoRows.map(p =>
+      `<img src="/api/photo/${encodeURIComponent(p.r2_key)}" class="thumb" alt="photo">`
+    ).join('&nbsp;');
+
+    const statusLabel = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[row.status] || row.status;
+
+    html += `<tr>
+      <td>${row.id}</td>
+      <td>${row.supervisor_name || ''}</td>
+      <td>${row.customer_name || ''}</td>
+      <td>${row.shop_name || ''}</td>
+      <td>${row.shop_code || ''}</td>
+      <td>${row.region || ''}</td>
+      <td>${row.visit_datetime || ''}</td>
+      <td>${statusLabel}</td>
+      <td>${(row.review_comment || '').replace(/</g, '&lt;')}</td>
+      <td>${(header.channel_zone || '').replace(/</g, '&lt;')}</td>
+      <td>${(header.pc_name || '').replace(/</g, '&lt;')}</td>
+      <td>${(header.note || '').replace(/</g, '&lt;')}</td>
+      <td>${s2.haier_ach || ''}</td>
+      <td>${s6.haier_trend || ''}</td>
+      <td>${s6.store_situation || ''}</td>
+      <td>${(s6.key_finding || '').replace(/</g, '&lt;')}</td>
+      <td>${(s6.opportunity || '').replace(/</g, '&lt;')}</td>
+      <td>${(s6.follow_up || '').replace(/</g, '&lt;')}</td>
+      <td>${(s4.issue_detail || '').replace(/</g, '&lt;')}</td>
+      <td>${(s4.cause || '').replace(/</g, '&lt;')}</td>
+      <td>${(s4.solution || '').replace(/</g, '&lt;')}</td>
+      <td>${(s4.responsible || '').replace(/</g, '&lt;')}</td>
+      <td>${s5.met || ''}</td>
+      <td>${photoHtml}</td>
+    </tr>`;
+  }
+
+  html += '</table></body></html>';
+
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="store-visits-export.xls"',
+    },
+  });
+}

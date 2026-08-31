@@ -11,6 +11,8 @@ import {
   handleAdminStats, handleAdminSupervisors, handleAdminStores,
   handleAdminImportCSV, handleAdminExport, handleAdminDeleteStore,
   handleAdminUpdateSupervisor, handleAdminDeleteSupervisor,
+  handleServePhoto, handleAdminExportStores, handleAdminImportStoresReplace,
+  handleAdminExportExcel,
 } from './admin';
 
 export async function handleApiRequest(request, env, ctx) {
@@ -67,9 +69,15 @@ export async function handleApiRequest(request, env, ctx) {
     return json(await handleSubmitVisit(env.DB, body), 201);
   }
 
-  // Get a single visit
-  if (method === 'GET' && path.startsWith('/api/visits/') && !path.includes('admin')) {
+  // Get a single visit (public)
+  if (method === 'GET' && path.startsWith('/api/visits/') && !path.includes('admin') && !path.includes('my-visit')) {
     const id = path.replace('/api/visits/', '');
+    return json(await handleGetVisit(env.DB, env.PHOTOS, id));
+  }
+
+  // Get my visit detail (for supervisor viewing their own submission)
+  if (method === 'GET' && path.startsWith('/api/my-visit/')) {
+    const id = path.replace('/api/my-visit/', '');
     return json(await handleGetVisit(env.DB, env.PHOTOS, id));
   }
 
@@ -83,6 +91,12 @@ export async function handleApiRequest(request, env, ctx) {
   // Upload photo
   if (method === 'POST' && path === '/api/upload') {
     return handleUploadPhoto(request, env, ctx);
+  }
+
+  // Serve photo from R2
+  if (method === 'GET' && path.startsWith('/api/photo/')) {
+    const r2Key = decodeURIComponent(path.replace('/api/photo/', ''));
+    return handleServePhoto(request, env, r2Key);
   }
 
   // --- Admin routes ---
@@ -108,14 +122,35 @@ export async function handleApiRequest(request, env, ctx) {
     return json(await handleAdminStats(env.DB));
   }
 
-  // Admin export
+  // Admin export CSV (simple)
   if (method === 'GET' && path === '/api/admin/export') {
     const unauth = requireAdmin(request, env);
     if (unauth) return unauth;
     return handleAdminExport(env.DB, url.searchParams);
   }
 
-  // Admin import CSV
+  // Admin export Excel with photos
+  if (method === 'GET' && path === '/api/admin/export-excel') {
+    const unauth = requireAdmin(request, env);
+    if (unauth) return unauth;
+    return handleAdminExportExcel(env.DB, url.searchParams);
+  }
+
+  // Admin export stores
+  if (method === 'GET' && path === '/api/admin/export-stores') {
+    const unauth = requireAdmin(request, env);
+    if (unauth) return unauth;
+    return handleAdminExportStores(env.DB);
+  }
+
+  // Admin import stores (replace all)
+  if (method === 'POST' && path === '/api/admin/import-stores-replace') {
+    const unauth = requireAdmin(request, env);
+    if (unauth) return unauth;
+    return json(await handleAdminImportStoresReplace(request, env.DB));
+  }
+
+  // Admin import CSV (upsert)
   if (method === 'POST' && path === '/api/admin/import-csv') {
     const unauth = requireAdmin(request, env);
     if (unauth) return unauth;

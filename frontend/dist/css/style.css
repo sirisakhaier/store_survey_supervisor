@@ -153,6 +153,17 @@ header .header-title { flex: 1; font-size: 14px; font-weight: 500; opacity: 0.95
 
 .landing-links a:hover { text-decoration: underline; }
 
+.my-subs-badge {
+  display: inline-block;
+  background: var(--primary-light);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
 /* Form elements */
 .form-group {
   margin-bottom: 16px;

@@ -69,7 +69,7 @@
         </button>
 
         <div class="landing-links">
-          <a href="#" onclick="showMySubmissions()">ผลการตรวจของฉัน</a>
+          <a href="#" onclick="showMySubmissions()" id="mySubmissionsBadge" style="display:none">ผลการตรวจของฉัน</a>
           <a href="#" onclick="showAdminLogin()">Admin</a>
         </div>
       </div>
@@ -482,7 +482,8 @@
           </select>
           <input type="date" id="adminFilterDateFrom" onchange="loadAdminVisits()">
           <input type="date" id="adminFilterDateTo" onchange="loadAdminVisits()">
-          <button class="btn btn-sm btn-outline" onclick="exportAdminCSV()">Export CSV</button>
+          <button class="btn btn-sm btn-outline" onclick="exportAdminCSV()">CSV</button>
+          <button class="btn btn-sm btn-primary" onclick="exportAdminExcel()">Excel</button>
         </div>
 
         <!-- Visits table -->
@@ -509,17 +510,35 @@
         <!-- Store Data -->
         <div id="adminTabStores" class="admin-tab-content" style="display:none">
           <h3>ข้อมูลร้านค้า (อ่านจาก D1)</h3>
+          <div style="display:flex;gap:8px;margin-bottom:8px">
+            <button class="btn btn-sm btn-primary" onclick="exportStoresCSV()">📥 Export CSV</button>
+          </div>
           <div class="table-container" id="adminStoreTable"></div>
         </div>
 
         <!-- Import CSV -->
         <div id="adminTabImport" class="admin-tab-content" style="display:none">
-          <h3>นำเข้า Dimension_Store.csv</h3>
-          <p>เลือกไฟล์ CSV เพื่ออัปเดตข้อมูลร้านค้าและลูกค้า</p>
+          <h3>📥 นำเข้า Dimension_Store.csv (Upsert)</h3>
+          <p>เลือกไฟล์ CSV เพื่ออัปเดตข้อมูลร้านค้าและลูกค้า (เพิ่ม/แก้ไขตาม Shop Code)</p>
           <input type="file" accept=".csv" id="csvImportFile">
-          <button class="btn btn-primary btn-block" onclick="importCSV()">นำเข้า</button>
+          <button class="btn btn-primary btn-block" onclick="importCSV()">นำเข้า (Upsert)</button>
           <div id="importResult"></div>
+
+          <hr style="margin:20px 0">
+
+          <h3>⚠️ นำเข้าแบบแทนที่ทั้งหมด (Replace All)</h3>
+          <p style="color:var(--danger)">คำเตือน: การดำเนินการนี้จะลบข้อมูลร้านค้าและลูกค้าทั้งหมด แล้วแทนที่ด้วยข้อมูลจาก CSV ใหม่</p>
+          <input type="file" accept=".csv" id="csvImportReplaceFile">
+          <button class="btn btn-primary btn-block" onclick="importStoresReplace()" style="background:var(--danger)">⚠️ แทนที่ทั้งหมด</button>
+          <div id="importReplaceResult"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: User Visit Detail ==================== -->
+    <div id="pageUserVisitDetail" class="page">
+      <div class="page-content">
+        <div id="userVisitDetail"></div>
       </div>
     </div>
 
