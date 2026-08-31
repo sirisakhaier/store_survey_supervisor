@@ -4,7 +4,7 @@
  */
 
 // ========== Configuration ==========
-const API = window.API_BASE || '';  // Set via Cloudflare Pages env var or same-origin proxy
+const API = '';  // Using relative URLs — proxied via _redirects to worker
 let adminToken = localStorage.getItem('adminToken') || '';
 let selectedSupervisor = null;
 let selectedCustomer = null;
