@@ -581,19 +581,19 @@ async function loadAdminVisits() {
     document.getElementById('adminVisitsTable').innerHTML = `
       <table>
         <thead><tr>
-          <th>วันที่</th><th>Supervisor</th><th>ร้านค้า</th><th>Customer</th><th>สถานะ</th><th>จัดการ</th>
-        </tr></thead>
-        <tbody>
-          ${data.visits.map(v => {
-            const statusClass = 'status-' + v.status;
-            const statusLabel = { pending: 'รอตรวจ', approved: 'อนุมัติ', rejected: 'ตีกลับ' }[v.status] || v.status;
-            return `<tr>
-              <td>${new Date(v.visit_datetime).toLocaleDateString('th-TH')}</td>
-              <td>${v.supervisor_name || '—'}</td>
-              <td>${v.shop_name || v.shop_code}</td>
-              <td>${v.customer_name || '—'}</td>
-              <td><span class="visit-status ${statusClass}">${statusLabel}</span></td>
-              <td><button class="btn btn-sm btn-outline" onclick="showAdminVisitDetail('${v.id}')">ดู</button></td>
+          <th>วันที่</th><th>Supervisor</th><th>ร้านค้า</th><th>Customer</th><th>สถานะ</th><th>Full Details</th>
+                  </tr></thead>
+                  <tbody>
+                    ${data.visits.map(v => {
+                      const statusClass = 'status-' + v.status;
+                      const statusLabel = { pending: 'รอตรวจ', approved: 'อนุมัติ', rejected: 'ตีกลับ' }[v.status] || v.status;
+                      return `<tr>
+                        <td>${new Date(v.visit_datetime).toLocaleDateString('th-TH')}</td>
+                        <td>${v.supervisor_name || '—'}</td>
+                        <td>${v.shop_name || v.shop_code}</td>
+                        <td>${v.customer_name || '—'}</td>
+                        <td><span class="visit-status ${statusClass}">${statusLabel}</span></td>
+                        <td><button class="btn btn-sm btn-primary" onclick="showAdminVisitDetail('${v.id}')">📋 Full Details</button></td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -784,6 +784,7 @@ function switchAdminTab(tab) {
   document.querySelector(`.tab-btn[onclick*="${tab}"]`).classList.add('active');
   document.getElementById(`adminTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).style.display = 'block';
   if (tab === 'stores') loadAdminStores();
+  if (tab === 'visits') loadAdminVisits();
 }
 
 async function loadSupervisors() {

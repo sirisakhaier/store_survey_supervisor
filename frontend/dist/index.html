@@ -472,29 +472,32 @@
         <!-- Stats cards -->
         <div class="stats-grid" id="adminStats"></div>
 
-        <!-- Filters -->
-        <div class="filter-bar">
-          <select id="adminFilterStatus" onchange="loadAdminVisits()">
-            <option value="">ทั้งหมด</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-          </select>
-          <input type="date" id="adminFilterDateFrom" onchange="loadAdminVisits()">
-          <input type="date" id="adminFilterDateTo" onchange="loadAdminVisits()">
-          <button class="btn btn-sm btn-outline" onclick="exportAdminCSV()">CSV</button>
-          <button class="btn btn-sm btn-primary" onclick="exportAdminExcel()">Excel</button>
-        </div>
-
-        <!-- Visits table -->
-        <div class="table-container" id="adminVisitsTable"></div>
-
         <!-- Admin tabs -->
         <div class="admin-tabs">
-          <button class="tab-btn active" onclick="switchAdminTab('visits')">Visits</button>
-          <button class="tab-btn" onclick="switchAdminTab('supervisors')">Supervisors</button>
-          <button class="tab-btn" onclick="switchAdminTab('stores')">Store Data</button>
-          <button class="tab-btn" onclick="switchAdminTab('import')">Import CSV</button>
+          <button class="tab-btn active" onclick="switchAdminTab('visits')">📋 Visits</button>
+          <button class="tab-btn" onclick="switchAdminTab('supervisors')">👤 Supervisors</button>
+          <button class="tab-btn" onclick="switchAdminTab('stores')">🏪 Store Data</button>
+          <button class="tab-btn" onclick="switchAdminTab('import')">📥 Import CSV</button>
+        </div>
+
+        <!-- Visits tab -->
+        <div id="adminTabVisits" class="admin-tab-content">
+          <!-- Filters -->
+          <div class="filter-bar">
+            <select id="adminFilterStatus" onchange="loadAdminVisits()">
+              <option value="">ทั้งหมด</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <input type="date" id="adminFilterDateFrom" onchange="loadAdminVisits()">
+            <input type="date" id="adminFilterDateTo" onchange="loadAdminVisits()">
+            <button class="btn btn-sm btn-outline" onclick="exportAdminCSV()">CSV</button>
+            <button class="btn btn-sm btn-primary" onclick="exportAdminExcel()">Excel</button>
+          </div>
+
+          <!-- Visits table -->
+          <div class="table-container" id="adminVisitsTable"></div>
         </div>
 
         <!-- Supervisors management -->
