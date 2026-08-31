@@ -634,3 +634,236 @@ export async function handleAdminExportExcel(db, params) {
     },
   });
 }
+
+// ====== NEW: Export selected surveys (POST) ======
+// mode: 'multi-sheet' = 1 file, 1 sheet per survey (full detail)
+//       'single-sheet' = 1 file, 1 flat table with all surveys as rows
+export async function handleAdminExportSelected(db, body) {
+  const { ids, mode } = body;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return new Response(JSON.stringify({ error: 'No visit IDs provided' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  if (!['multi-sheet', 'single-sheet'].includes(mode)) {
+    return new Response(JSON.stringify({ error: 'mode must be "multi-sheet" or "single-sheet"' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Fetch all selected visits
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = await queryAll(
+    db,
+    `SELECT v.id, v.supervisor_id, sup.name as supervisor_name, c.customer_name,
+            s.shop_name, s.shop_code, s.region, s.channel, s.channel_lv1, s.channel_lv2,
+            v.visit_datetime, v.status, v.review_comment, v.submitted_at,
+            v.form_json
+     FROM visits v
+     LEFT JOIN supervisors sup ON v.supervisor_id = sup.id
+     LEFT JOIN stores s ON v.shop_code = s.shop_code
+     LEFT JOIN customers c ON v.customer_code = c.customer_code
+     WHERE v.id IN (${placeholders})
+     ORDER BY v.submitted_at DESC`,
+    ids
+  );
+
+  if (rows.length === 0) {
+    return new Response(JSON.stringify({ error: 'No visits found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Helper: render one survey's full detail as HTML table
+  function renderSurveyTable(row, sheetName) {
+    const fj = JSON.parse(row.form_json || '{}');
+    const s1 = fj.section1 || {}; const s2 = fj.section2 || {};
+    const s3 = fj.section3 || {}; const s4 = fj.section4 || {};
+    const s5 = fj.section5 || {}; const s6 = fj.section6 || {};
+    const header = fj.header || {}; const sig = fj.signature || {};
+    const pc = s3.product_count || {}; const staff = s1.staff || [];
+    const compSales = s2.competitors || []; const issues = s4.main_issues || [];
+    const statusLabel = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[row.status] || row.status;
+
+    const categoryLabels = { cat1: 'ภาพรวมหน้าร้าน', cat2: 'ถ่ายร่วมกับ GM', cat3: 'พื้นที่ Haier', cat4: 'POP/ป้ายราคา', cat5: 'จุดที่มีปัญหา (Before)', cat6: 'หลังแก้ไข (After)' };
+
+    // Get photo HTML for this survey
+    // We'll embed photo URLs as placeholders — they won't render in plain Excel cells
+    const photoUrls = []; // fetched separately below
+
+    let table = `<table>
+      <tr><th colspan="2" style="background:#004EA2;color:white;font-size:14px">${sheetName}</th></tr>
+      <tr><th colspan="2" style="background:#e8f0fa">📋 ข้อมูลทั่วไป</th></tr>
+      <tr><td style="font-weight:bold">Supervisor</td><td>${row.supervisor_name || ''}</td></tr>
+      <tr><td style="font-weight:bold">ร้านค้า</td><td>${row.shop_name || ''} (${row.shop_code || ''})</td></tr>
+      <tr><td style="font-weight:bold">Customer</td><td>${row.customer_name || ''}</td></tr>
+      <tr><td style="font-weight:bold">ช่องทาง/เขต</td><td>${esc(header.channel_zone || '')}</td></tr>
+      <tr><td style="font-weight:bold">วันที่ตรวจ</td><td>${row.visit_datetime || ''}</td></tr>
+      <tr><td style="font-weight:bold">PC ประจำสาขา</td><td>${esc(header.pc_name || '')}</td></tr>
+      <tr><td style="font-weight:bold">Note</td><td>${esc(header.note || '')}</td></tr>
+      <tr><td style="font-weight:bold">สถานะ</td><td>${statusLabel}</td></tr>
+      ${row.review_comment ? `<tr><td style="font-weight:bold">Comment</td><td>${esc(row.review_comment)}</td></tr>` : ''}
+
+      <tr><th colspan="2" style="background:#e8f0fa">👥 1. ข้อมูลพนักงานภายในร้าน</th></tr>
+      ${staff.map(s => `<tr><td>${esc(s.brand)}</td><td>PC=${s.pc}, ME=${s.me}, ${esc(s.part_time || '')}</td></tr>`).join('')}
+      <tr><td style="font-weight:bold">อบรม</td><td>${esc(s1.training?.topic || '')} (${s1.training?.status === 'completed' ? '✅ อบรมแล้ว' : '❌ ไม่ได้อบรม'})</td></tr>
+      ${s1.training?.reason ? `<tr><td>เหตุผล</td><td>${esc(s1.training.reason)}</td></tr>` : ''}
+      <tr><td style="font-weight:bold">ผลการอบรม</td><td>${esc(s1.training?.outcome || '')}</td></tr>
+
+      <tr><th colspan="2" style="background:#e8f0fa">💰 2. ข้อมูลยอดขาย</th></tr>
+      <tr><td>รวม Target</td><td>${(s2.total_target || 0).toLocaleString()} บาท</td></tr>
+      <tr><td>รวม ปัจจุบัน</td><td>${(s2.total_current || 0).toLocaleString()} บาท</td></tr>
+      <tr><td>Haier Target</td><td>${(s2.haier_target || 0).toLocaleString()} บาท</td></tr>
+      <tr><td>Haier ปัจจุบัน</td><td>${(s2.haier_current || 0).toLocaleString()} บาท</td></tr>
+      <tr><td>%Ach.</td><td>${s2.haier_ach || '0.0%'}</td></tr>
+      ${compSales.map(c => `<tr><td>คู่แข่ง ${esc(c.brand)}</td><td>Target=${(c.target||0).toLocaleString()}, ปัจจุบัน=${(c.current||0).toLocaleString()}, ${esc(c.note||'')}</td></tr>`).join('')}
+
+      <tr><th colspan="2" style="background:#e8f0fa">📐 3. พื้นที่โชว์สินค้า Haier</th></tr>
+      <tr><td>จำนวนสินค้าโชว์</td><td>AC=${pc.ac||0} RF=${pc.rf||0} WM=${pc.wm||0} FZ=${pc.fz||0} TV=${pc.tv||0}</td></tr>
+      <tr><td>ความสะอาด</td><td>${esc(s3.cleanliness || '')}</td></tr>
+      <tr><td>POP</td><td>${esc(s3.pop?.status || '')} ${s3.pop?.missing ? '(ขาด: ' + esc(s3.pop.missing) + ')' : ''}</td></tr>
+      <tr><td>Asset</td><td>${esc(s3.asset?.status || '')} ${s3.asset?.issue ? '(' + esc(s3.asset.issue) + ')' : ''}</td></tr>
+      <tr><td>Schematic</td><td>${esc(s3.schematic?.status || '')} ${s3.schematic?.issue ? '(' + esc(s3.schematic.issue) + ')' : ''}</td></tr>
+      <tr><td>ป้ายราคา</td><td>${esc(s3.price_tag?.status || '')} ${s3.price_tag?.issue ? '(' + esc(s3.price_tag.issue) + ')' : ''}</td></tr>
+
+      <tr><th colspan="2" style="background:#e8f0fa">🔧 4. ปัญหา / คู่แข่ง / การแก้ไข</th></tr>
+      <tr><td>โปรโมชั่นคู่แข่ง</td><td>${esc(s4.competitor_promo || '')}</td></tr>
+      <tr><td>กิจกรรมคู่แข่ง</td><td>${esc(s4.competitor_activity || '')}</td></tr>
+      <tr><td>ปัญหาหลัก</td><td>${esc((issues||[]).join(', '))}</td></tr>
+      <tr><td>Issue</td><td>${esc(s4.issue_detail || '')}</td></tr>
+      <tr><td>สาเหตุ</td><td>${esc(s4.cause || '')}</td></tr>
+      <tr><td>วิธีแก้ไข</td><td>${esc(s4.solution || '')}</td></tr>
+      <tr><td>ผู้รับผิดชอบ</td><td>${esc(s4.responsible || '')}</td></tr>
+
+      <tr><th colspan="2" style="background:#e8f0fa">🤝 5. เข้าพบ GM</th></tr>
+      <tr><td>เข้าพบ</td><td>${esc(s5.met || '')} ${s5.not_met_reason ? '(' + esc(s5.not_met_reason) + ')' : ''}</td></tr>
+      <tr><td>ชื่อ</td><td>${esc(s5.name || '')}</td></tr>
+      <tr><td>ตำแหน่ง</td><td>${esc(s5.position || '')}</td></tr>
+      <tr><td>Feedback</td><td>${esc(s5.feedback || '')}</td></tr>
+      <tr><td>Support</td><td>${esc(s5.support || '')}</td></tr>
+
+      <tr><th colspan="2" style="background:#e8f0fa">📊 6. สรุปภาพรวมร้าน</th></tr>
+      <tr><td>แนวโน้ม Haier</td><td>${esc(s6.haier_trend || '')}</td></tr>
+      <tr><td>สถานการณ์</td><td>${esc(s6.store_situation || '')}</td></tr>
+      <tr><td>Key Finding</td><td>${esc(s6.key_finding || '')}</td></tr>
+      <tr><td>โอกาส/Action</td><td>${esc(s6.opportunity || '')}</td></tr>
+      <tr><td>Follow-up</td><td>${esc(s6.follow_up || '')}</td></tr>
+
+      <tr><th colspan="2" style="background:#e8f0fa">✍️ ลายเซ็น</th></tr>
+      <tr><td>ผู้ตรวจ</td><td>${esc(sig.supervisor || '')}</td></tr>
+      <tr><td>วันที่</td><td>${esc(sig.date || '')}</td></tr>
+      <tr><td>GM</td><td>${esc(sig.gm || '')}</td></tr>
+    </table>`;
+
+    return table;
+  }
+
+  function esc(s) { return (s || '').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  if (mode === 'multi-sheet') {
+    // One sheet per survey using Excel XML multi-sheet format
+    // Each sheet gets its own table wrapped in worksheet XML
+    let sheets = rows.map((row, i) => {
+      const sheetName = `Survey ${i+1} - ${(row.shop_name || row.shop_code || '').slice(0, 25)}`;
+      const table = renderSurveyTable(row, sheetName);
+      return { name: sheetName, table };
+    });
+
+    // Build multi-sheet HTML
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+                xmlns:x="urn:schemas-microsoft-com:office:excel"
+                xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8">
+    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>
+    ${sheets.map((s, i) => `<x:ExcelWorksheet><x:Name>${s.name}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>`).join('')}
+    </x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+    <style>
+      table { border-collapse: collapse; font-size: 11px; font-family: Arial; margin-bottom: 20px; }
+      th, td { border: 1px solid #999; padding: 4px 8px; vertical-align: top; }
+      th { background: #004EA2; color: white; }
+    </style>
+    </head><body>
+    ${sheets.map(s => s.table).join('<br/><br/>')}
+    </body></html>`;
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
+        'Content-Disposition': `attachment; filename="selected-surveys-multi-sheet.xls"`,
+      },
+    });
+  } else {
+    // Single-sheet mode: flat table, one row per survey
+    const statusLabel = (s) => ({ pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }[s] || s);
+
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+                xmlns:x="urn:schemas-microsoft-com:office:excel"
+                xmlns="http://www.w3.org/TR/REC-html40">
+    <head><meta charset="UTF-8">
+    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+    <x:Name>Sheet1</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+    </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+    <style>
+      table { border-collapse: collapse; font-size: 10px; font-family: Arial; }
+      th, td { border: 1px solid #999; padding: 3px 5px; vertical-align: top; }
+      th { background: #004EA2; color: white; }
+    </style>
+    </head><body><table>
+    <tr>
+      <th>#</th><th>ID</th><th>Supervisor</th><th>Customer</th><th>Store</th><th>Shop Code</th>
+      <th>Region</th><th>Visit Date</th><th>Status</th><th>Review Comment</th>
+      <th>Channel/Zone</th><th>PC Name</th><th>Note</th>
+      <th>%Ach.</th><th>Haier Trend</th><th>Situation</th>
+      <th>Key Finding</th><th>Action</th><th>Follow Up</th>
+      <th>Issue</th><th>Cause</th><th>Solution</th><th>Responsible</th>
+      <th>GM Meeting</th>
+    </tr>`;
+
+    rows.forEach((row, i) => {
+      const fj = JSON.parse(row.form_json || '{}');
+      const s2 = fj.section2 || {}; const s6 = fj.section6 || {};
+      const s4 = fj.section4 || {}; const s5 = fj.section5 || {};
+      const header = fj.header || {};
+      const issues = s4.main_issues || [];
+
+      html += `<tr>
+        <td>${i+1}</td>
+        <td>${row.id}</td>
+        <td>${esc(row.supervisor_name || '')}</td>
+        <td>${esc(row.customer_name || '')}</td>
+        <td>${esc(row.shop_name || '')}</td>
+        <td>${row.shop_code || ''}</td>
+        <td>${row.region || ''}</td>
+        <td>${row.visit_datetime || ''}</td>
+        <td>${statusLabel(row.status)}</td>
+        <td>${esc(row.review_comment || '')}</td>
+        <td>${esc(header.channel_zone || '')}</td>
+        <td>${esc(header.pc_name || '')}</td>
+        <td>${esc(header.note || '')}</td>
+        <td>${s2.haier_ach || ''}</td>
+        <td>${esc(s6.haier_trend || '')}</td>
+        <td>${esc(s6.store_situation || '')}</td>
+        <td>${esc(s6.key_finding || '')}</td>
+        <td>${esc(s6.opportunity || '')}</td>
+        <td>${esc(s6.follow_up || '')}</td>
+        <td>${esc(s4.issue_detail || '')}</td>
+        <td>${esc(s4.cause || '')}</td>
+        <td>${esc(s4.solution || '')}</td>
+        <td>${esc(s4.responsible || '')}</td>
+        <td>${esc(s5.met || '')}</td>
+      </tr>`;
+    });
+
+    html += '</table></body></html>';
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="selected-surveys-single-sheet.xls"',
+      },
+    });
+  }
+}

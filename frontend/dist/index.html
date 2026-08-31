@@ -482,6 +482,12 @@
 
         <!-- Visits tab -->
         <div id="adminTabVisits" class="admin-tab-content">
+          <!-- Export Selected Bar -->
+          <div id="exportSelectedBar" class="export-selected-bar" style="display:none">
+            <span><input type="checkbox" id="selectAllCheck2" onchange="document.getElementById('selectAllCheck').checked=this.checked;toggleSelectAll()"> เลือกทั้งหมด</span>
+            <span id="exportCount" style="font-size:13px;color:var(--gray-500)"></span>
+            <button class="btn btn-sm btn-primary" id="btnExportSelected" onclick="showExportModal()" disabled>📥 Export Selected</button>
+          </div>
           <!-- Filters -->
           <div class="filter-bar">
             <select id="adminFilterStatus" onchange="loadAdminVisits()">
@@ -550,6 +556,37 @@
       <div class="page-content">
         <button class="btn btn-outline btn-sm" onclick="backToAdmin()">← กลับ</button>
         <div id="adminVisitDetail"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div id="exportModal" class="modal-overlay" style="display:none">
+    <div class="modal-content">
+      <h3>📥 Export Selected Surveys</h3>
+      <p style="font-size:13px;color:var(--gray-500);margin-bottom:16px">เลือกรูปแบบการ export</p>
+
+      <div class="export-option">
+        <label class="radio-label" style="font-size:14px;font-weight:600">
+          <input type="radio" name="exportMode" value="multi-sheet" checked>
+          📑 1 ไฟล์ หลาย Sheet (1 Sheet ต่อ 1 Survey)
+        </label>
+        <p style="font-size:12px;color:var(--gray-500);margin-left:24px">แต่ละ survey แสดงรายละเอียดครบทุกหัวข้อใน sheet แยกกัน</p>
+      </div>
+
+      <div class="export-option" style="margin-top:12px">
+        <label class="radio-label" style="font-size:14px;font-weight:600">
+          <input type="radio" name="exportMode" value="single-sheet">
+          📋 1 ไฟล์ 1 Sheet (รวมทุก Survey เป็นแถว)
+        </label>
+        <p style="font-size:12px;color:var(--gray-500);margin-left:24px">ทุก survey อยู่ใน sheet เดียว เหมาะสำหรับนำไปวิเคราะห์ต่อ</p>
+      </div>
+
+      <input type="hidden" id="exportModalIds" value="">
+
+      <div style="display:flex;gap:8px;margin-top:20px">
+        <button class="btn btn-primary" onclick="doExportSelected()" style="flex:1">✅ Export</button>
+        <button class="btn btn-outline" onclick="closeExportModal()">ยกเลิก</button>
       </div>
     </div>
   </div>

@@ -572,34 +572,103 @@ async function loadAdminVisits() {
   if (dateTo) url += '&date_to=' + dateTo;
 
   try {
-    const res = await fetch(url, { headers: { 'X-Admin-Token': adminToken } });
-    const data = await res.json();
-    if (!data.visits || data.visits.length === 0) {
-      document.getElementById('adminVisitsTable').innerHTML = '<div class="empty-state">ไม่พบข้อมูล</div>';
-      return;
+      const res = await fetch(url, { headers: { 'X-Admin-Token': adminToken } });
+      const data = await res.json();
+      if (!data.visits || data.visits.length === 0) {
+        document.getElementById('adminVisitsTable').innerHTML = '<div class="empty-state">ไม่พบข้อมูล</div>';
+        document.getElementById('exportSelectedBar').style.display = 'none';
+        return;
+      }
+      document.getElementById('exportSelectedBar').style.display = 'flex';
+      document.getElementById('adminVisitsTable').innerHTML = `
+        <table>
+          <thead><tr>
+            <th><input type="checkbox" id="selectAllCheck" onchange="toggleSelectAll()"></th>
+            <th>วันที่</th><th>Supervisor</th><th>ร้านค้า</th><th>Customer</th><th>สถานะ</th><th>Full Details</th>
+          </tr></thead>
+          <tbody>
+            ${data.visits.map(v => {
+              const statusClass = 'status-' + v.status;
+              const statusLabel = { pending: 'รอตรวจ', approved: 'อนุมัติ', rejected: 'ตีกลับ' }[v.status] || v.status;
+              return `<tr>
+                <td><input type="checkbox" class="visit-check" value="${v.id}" onchange="updateExportButton()"></td>
+                <td>${new Date(v.visit_datetime).toLocaleDateString('th-TH')}</td>
+                <td>${v.supervisor_name || '—'}</td>
+                <td>${v.shop_name || v.shop_code}</td>
+                <td>${v.customer_name || '—'}</td>
+                <td><span class="visit-status ${statusClass}">${statusLabel}</span></td>
+                <td><button class="btn btn-sm btn-primary" onclick="showAdminVisitDetail('${v.id}')">📋 Full Details</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>`;
+    } catch (err) { console.error('Failed to load visits:', err); }
+  }
+
+  // ========== Selected Export ==========
+  function toggleSelectAll() {
+    const checked = document.getElementById('selectAllCheck').checked;
+    document.querySelectorAll('.visit-check').forEach(cb => cb.checked = checked);
+    updateExportButton();
+  }
+
+  function updateExportButton() {
+    const count = document.querySelectorAll('.visit-check:checked').length;
+    document.getElementById('btnExportSelected').disabled = count === 0;
+    document.getElementById('exportCount').textContent = count > 0 ? `(${count} selected)` : '';
+  }
+
+  function showExportModal() {
+    const ids = Array.from(document.querySelectorAll('.visit-check:checked')).map(cb => cb.value);
+    if (ids.length === 0) { showToast('กรุณาเลือก survey ที่ต้องการ export', 'error'); return; }
+    // Store selected IDs for the export action
+    document.getElementById('exportModalIds').value = JSON.stringify(ids);
+    document.getElementById('exportModal').style.display = 'flex';
+  }
+
+  function closeExportModal() {
+    document.getElementById('exportModal').style.display = 'none';
+  }
+
+  async function doExportSelected() {
+    const ids = JSON.parse(document.getElementById('exportModalIds').value || '[]');
+    const mode = document.querySelector('input[name="exportMode"]:checked').value;
+    if (ids.length === 0) return;
+
+    closeExportModal();
+    showLoading(true);
+
+    try {
+      const res = await fetch(`${API}/api/admin/export-selected`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Token': adminToken },
+        body: JSON.stringify({ ids, mode }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast('Export failed: ' + (err.error || res.statusText), 'error');
+        return;
+      }
+
+      // Download as file
+      const blob = await res.blob();
+      const filename = mode === 'multi-sheet'
+        ? `surveys-multi-sheet-${ids.length}-surveys.xls`
+        : `surveys-single-sheet-${ids.length}-surveys.xls`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✅ Export ${ids.length} surveys เรียบร้อย`, 'success');
+    } catch (err) {
+      showToast('Export failed: ' + err.message, 'error');
+    } finally {
+      showLoading(false);
     }
-    document.getElementById('adminVisitsTable').innerHTML = `
-      <table>
-        <thead><tr>
-          <th>วันที่</th><th>Supervisor</th><th>ร้านค้า</th><th>Customer</th><th>สถานะ</th><th>Full Details</th>
-                  </tr></thead>
-                  <tbody>
-                    ${data.visits.map(v => {
-                      const statusClass = 'status-' + v.status;
-                      const statusLabel = { pending: 'รอตรวจ', approved: 'อนุมัติ', rejected: 'ตีกลับ' }[v.status] || v.status;
-                      return `<tr>
-                        <td>${new Date(v.visit_datetime).toLocaleDateString('th-TH')}</td>
-                        <td>${v.supervisor_name || '—'}</td>
-                        <td>${v.shop_name || v.shop_code}</td>
-                        <td>${v.customer_name || '—'}</td>
-                        <td><span class="visit-status ${statusClass}">${statusLabel}</span></td>
-                        <td><button class="btn btn-sm btn-primary" onclick="showAdminVisitDetail('${v.id}')">📋 Full Details</button></td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
-  } catch (err) { console.error('Failed to load visits:', err); }
-}
+  }
 
 // ========== Shared: Visit Detail Page (used by both admin and user) ==========
 function showVisitDetailPage(data, isAdmin) {

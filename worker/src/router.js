@@ -12,7 +12,7 @@ import {
   handleAdminImportCSV, handleAdminExport, handleAdminDeleteStore,
   handleAdminUpdateSupervisor, handleAdminDeleteSupervisor,
   handleServePhoto, handleAdminExportStores, handleAdminImportStoresReplace,
-  handleAdminExportExcel,
+  handleAdminExportExcel, handleAdminExportSelected,
 } from './admin';
 
 export async function handleApiRequest(request, env, ctx) {
@@ -134,6 +134,15 @@ export async function handleApiRequest(request, env, ctx) {
     const unauth = requireAdmin(request, env);
     if (unauth) return unauth;
     return handleAdminExportExcel(env.DB, url.searchParams);
+  }
+
+  // Admin export selected surveys (POST — multi-sheet or single-sheet)
+  if (method === 'POST' && path === '/api/admin/export-selected') {
+    const unauth = requireAdmin(request, env);
+    if (unauth) return unauth;
+    const body = await getBody();
+    // body: { ids: [...], mode: 'multi-sheet'|'single-sheet' }
+    return handleAdminExportSelected(env.DB, body);
   }
 
   // Admin export stores

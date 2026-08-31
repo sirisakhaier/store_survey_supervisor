@@ -164,6 +164,46 @@ header .header-title { flex: 1; font-size: 14px; font-weight: 500; opacity: 0.95
   margin-left: 4px;
 }
 
+/* Export modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--radius);
+  padding: 24px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-content h3 { color: var(--primary); margin-bottom: 4px; }
+
+.export-option {
+  background: var(--gray-50);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.export-selected-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
 /* Form elements */
 .form-group {
   margin-bottom: 16px;
