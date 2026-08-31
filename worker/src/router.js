@@ -142,7 +142,13 @@ export async function handleApiRequest(request, env, ctx) {
     if (unauth) return unauth;
     const body = await getBody();
     // body: { ids: [...], mode: 'multi-sheet'|'single-sheet' }
-    return handleAdminExportSelected(env.DB, body);
+    const response = await handleAdminExportSelected(env.DB, body);
+    // Add CORS headers to the Response
+    const cors = corsHeaders(request.headers.get('Origin'));
+    for (const [key, val] of Object.entries(cors)) {
+      response.headers.set(key, val);
+    }
+    return response;
   }
 
   // Admin export stores
