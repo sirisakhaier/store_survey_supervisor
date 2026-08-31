@@ -20,12 +20,23 @@ export function adminLogin(request, env) {
 }
 
 export function verifyAdmin(request, env) {
+  // Check headers first
   const authHeader = request.headers.get('Authorization') || '';
-  const token = request.headers.get('X-Admin-Token') || '';
+  const tokenHeader = request.headers.get('X-Admin-Token') || '';
 
-  const authToken = authHeader.startsWith('Bearer ')
+  let authToken = authHeader.startsWith('Bearer ')
     ? authHeader.slice(7)
-    : token;
+    : tokenHeader;
+
+  // Fallback: check query parameter (used by window.open exports)
+  if (!authToken) {
+    try {
+      const url = new URL(request.url);
+      authToken = url.searchParams.get('token') || '';
+    } catch {
+      // ignore
+    }
+  }
 
   if (!authToken) return false;
 
