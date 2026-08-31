@@ -3,7 +3,7 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8787',
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://haier-store-visit.pages.dev',
+  'https://store-survey-supervisor.pages.dev',
   // Add your custom domain here
 ];
 
