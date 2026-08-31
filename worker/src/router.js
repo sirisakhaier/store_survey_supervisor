@@ -1,6 +1,6 @@
 // Router — dispatches API requests to handlers
 import { corsHeaders } from './cors';
-import { adminLogin } from './auth';
+import { adminLogin, verifyAdmin } from './auth';
 import {
   handleGetSupervisors, handleGetCustomers, handleGetStores,
   handleGetStore, handleSubmitVisit, handleGetVisit, handleGetMyVisits,
@@ -179,11 +179,10 @@ export async function handleApiRequest(request, env, ctx) {
 }
 
 function requireAdmin(request, env) {
-  const { verifyAdmin } = require('./auth');
   if (!verifyAdmin(request, env)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders(request.headers.get('Origin')), 'Content-Type': 'application/json' },
     });
   }
   return null;
