@@ -1,0 +1,22 @@
+name = "haier-store-visit-api"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+
+# D1 Database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "haier-store-visit-db"
+database_id = ""
+
+# R2 Bucket binding for photo uploads
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "haier-store-visit-photos"
+
+# Admin password (set via `wrangler secret put ADMIN_PASSWORD`)
+# [vars]
+# ADMIN_PASSWORD = ""
+
+# CORS origin for frontend (Cloudflare Pages URL)
+# [vars]
+# FRONTEND_URL = "https://haier-store-visit.pages.dev"

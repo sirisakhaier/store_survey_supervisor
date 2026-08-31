@@ -1,0 +1,8 @@
+{
+  "name": "haier-store-visit-frontend",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve dist",
+    "build": "echo 'Static site — nothing to build'"
+  }
+}

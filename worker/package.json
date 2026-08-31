@@ -1,0 +1,11 @@
+{
+  "name": "haier-store-visit-worker",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply haier-store-visit-db",
+    "seed": "wrangler d1 execute haier-store-visit-db --file=../seed-data/seed-d1.sql"
+  },
+  "dependencies": {}
+}

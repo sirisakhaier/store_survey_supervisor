@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PC Supervisor - Store Visit Checklist</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%23004EA2'/><text x='16' y='22' font-size='16' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'>H</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header>
+      <div class="logo">
+        <svg viewBox="0 0 80 24" width="80" height="24">
+          <text x="0" y="18" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="16">Haier</text>
+        </svg>
+      </div>
+      <span class="header-title" id="headerTitle">Store Visit Checklist</span>
+      <button class="header-btn" id="headerBtn" onclick="togglePage()" style="display:none">✕</button>
+    </header>
+
+    <!-- Loading overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display:none">
+      <div class="spinner"></div>
+      <p>กำลังโหลด...</p>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- ==================== PAGE: Landing ==================== -->
+    <div id="pageLanding" class="page active">
+      <div class="landing-card">
+        <div class="landing-icon">
+          <svg viewBox="0 0 48 48" width="64" height="64">
+            <rect x="4" y="20" width="40" height="24" rx="2" fill="none" stroke="#004EA2" stroke-width="2"/>
+            <path d="M16 20V12a8 8 0 0116 0v8" fill="none" stroke="#004EA2" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="24" cy="30" r="2" fill="#004EA2"/>
+            <path d="M24 32v4" stroke="#004EA2" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2>ใบตรวจเยี่ยมสาขาประจำวัน</h2>
+        <p class="subtitle">PC Supervisor – Store Visit Checklist</p>
+
+        <div class="form-group">
+          <label>ชื่อ PC Supervisor</label>
+          <select id="landingSupervisor" onchange="onSupervisorChange()">
+            <option value="">— เลือกชื่อ —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Customer Name</label>
+          <select id="landingCustomer" onchange="onCustomerChange()">
+            <option value="">— เลือก Customer —</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Shop Name</label>
+          <select id="landingShop">
+            <option value="">— เลือกร้าน —</option>
+          </select>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="startVisit()" id="btnStart" disabled>
+          เริ่มตรวจเยี่ยม
+        </button>
+
+        <div class="landing-links">
+          <a href="#" onclick="showMySubmissions()">ผลการตรวจของฉัน</a>
+          <a href="#" onclick="showAdminLogin()">Admin</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: Checklist Form ==================== -->
+    <div id="pageForm" class="page">
+      <form id="checklistForm" onsubmit="submitVisit(event)">
+        <!-- Visit header info -->
+        <div class="info-bar" id="formInfoBar">
+          <span id="formSupervisor"></span> — <span id="formShop"></span>
+        </div>
+
+        <!-- Section: Header Fields -->
+        <section class="form-section">
+          <h3 class="section-title">ข้อมูลการตรวจเยี่ยม</h3>
+          <div class="form-group">
+            <label>ช่องทาง / เขต</label>
+            <input type="text" id="fChannelZone" placeholder="อัตโนมัติจากร้านที่เลือก">
+          </div>
+          <div class="form-group">
+            <label>วันที่ / เวลาเข้าตรวจ</label>
+            <input type="datetime-local" id="fVisitDatetime">
+          </div>
+          <div class="form-group">
+            <label>ชื่อ PC ประจำสาขา</label>
+            <input type="text" id="fPcName" placeholder="ชื่อ PC ประจำสาขา">
+          </div>
+          <div class="form-group">
+            <label>Note</label>
+            <textarea id="fNote" rows="2" placeholder="บันทึกเพิ่มเติม"></textarea>
+          </div>
+        </section>
+
+        <!-- Section 1: Staff on Floor -->
+        <section class="form-section">
+          <h3 class="section-title">1. ข้อมูลพนักงานภายในร้าน</h3>
+
+          <div id="staffRows">
+            <div class="staff-row">
+              <div class="staff-row-header">Haier</div>
+              <div class="staff-fields">
+                <div class="staff-field">
+                  <label>PC</label>
+                  <input type="number" min="0" class="staff-pc" value="0" data-brand="Haier">
+                </div>
+                <div class="staff-field">
+                  <label>Promoter/ME</label>
+                  <input type="number" min="0" class="staff-me" value="0" data-brand="Haier">
+                </div>
+                <div class="staff-field staff-field-wide">
+                  <label>Part-time / หมายเหตุ</label>
+                  <input type="text" class="staff-pt" data-brand="Haier">
+                </div>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline" onclick="addCompetitorStaff()">+ เพิ่มคู่แข่ง</button>
+
+          <div class="form-group" style="margin-top:16px">
+            <label>การอบรมพนักงาน PC หน้าร้าน: หัวข้อ</label>
+            <input type="text" id="fTrainingTopic" placeholder="หัวข้ออบรม">
+          </div>
+          <div class="form-group">
+            <label>สถานะการอบรม</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="trainingStatus" value="completed" onchange="toggleTrainingReason()"> อบรมเรียบร้อย</label>
+              <label class="radio-label"><input type="radio" name="trainingStatus" value="not_done" onchange="toggleTrainingReason()"> ไม่ได้อบรม</label>
+            </div>
+            <div id="trainingReasonGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fTrainingReason" placeholder="เพราะ...">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>สิ่งที่ PC ได้จากการอบรม</label>
+            <textarea id="fTrainingOutcome" rows="2" placeholder="สิ่งที่ PC ได้จากการอบรม"></textarea>
+          </div>
+        </section>
+
+        <!-- Section 2: Sales Data -->
+        <section class="form-section">
+          <h3 class="section-title">2. ข้อมูลยอดขาย</h3>
+          <div class="form-group">
+            <label>ยอดขายรวมแผนกเครื่องใช้ไฟฟ้า — Target (บาท)</label>
+            <input type="number" min="0" id="fSalesTotalTarget" placeholder=" Target">
+          </div>
+          <div class="form-group">
+            <label>ยอดขายรวมแผนกเครื่องใช้ไฟฟ้า — ยอดปัจจุบัน (บาท)</label>
+            <input type="number" min="0" id="fSalesTotalCurrent" placeholder="ยอดปัจจุบัน">
+          </div>
+          <div class="form-group">
+            <label>ยอดขาย Haier — Target (บาท)</label>
+            <input type="number" min="0" id="fHaierTarget" placeholder="Target" oninput="calcAch()">
+          </div>
+          <div class="form-group">
+            <label>ยอดขาย Haier — ยอดปัจจุบัน (บาท)</label>
+            <input type="number" min="0" id="fHaierCurrent" placeholder="ยอดปัจจุบัน" oninput="calcAch()">
+          </div>
+          <div class="form-group">
+            <label>%Ach. (อัตโนมัติ)</label>
+            <input type="text" id="fHaierAch" readonly class="readonly-field" value="0.0%">
+          </div>
+
+          <div class="section-subtitle">แบรนด์คู่แข่ง</div>
+          <div id="competitorSalesRows">
+            <div class="competitor-sales-row">
+              <input type="text" class="comp-brand" placeholder="Brand name">
+              <input type="number" min="0" class="comp-target" placeholder="Target">
+              <input type="number" min="0" class="comp-current" placeholder="ยอดปัจจุบัน">
+              <input type="text" class="comp-note" placeholder="สินค้าที่ขายดี/สาเหตุ">
+              <button type="button" class="btn-icon" onclick="this.parentElement.remove()">✕</button>
+            </div>
+          </div>
+          <button type="button" class="btn btn-sm btn-outline" onclick="addCompetitorSalesRow()">+ เพิ่มแบรนด์</button>
+        </section>
+
+        <!-- Section 3: Schematic / Execution -->
+        <section class="form-section">
+          <h3 class="section-title">3. พื้นที่โชว์สินค้า Haier</h3>
+          <div class="form-group">
+            <label>นับจำนวนสินค้าโชว์ Haier</label>
+            <div class="product-count-row">
+              <span>AC <input type="number" min="0" id="fProdAC" value="0" class="prod-input"></span>
+              <span>RF <input type="number" min="0" id="fProdRF" value="0" class="prod-input"></span>
+              <span>WM <input type="number" min="0" id="fProdWM" value="0" class="prod-input"></span>
+              <span>FZ <input type="number" min="0" id="fProdFZ" value="0" class="prod-input"></span>
+              <span>TV <input type="number" min="0" id="fProdTV" value="0" class="prod-input"></span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ความสะอาดและความเรียบร้อยของพื้นที่ขาย/ตัวโชว์</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="cleanliness" value="เรียบร้อย"> เรียบร้อย</label>
+              <label class="radio-label"><input type="radio" name="cleanliness" value="ปานกลาง"> ปานกลาง</label>
+              <label class="radio-label"><input type="radio" name="cleanliness" value="ไม่เรียบร้อย"> ไม่เรียบร้อย</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>การติดตั้ง POP</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="pop" value="ครบ" onchange="togglePopMissing()"> ครบ</label>
+              <label class="radio-label"><input type="radio" name="pop" value="ไม่ครบ" onchange="togglePopMissing()"> ไม่ครบ</label>
+            </div>
+            <div id="popMissingGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fPopMissing" placeholder="ขาด:">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Asset (Furniture)/พื้นที่แบรนด์</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="asset" value="เรียบร้อย" onchange="toggleAssetIssue()"> เรียบร้อย</label>
+              <label class="radio-label"><input type="radio" name="asset" value="พบเฟอร์นิเจอร์ชำรุด" onchange="toggleAssetIssue()"> พบเฟอร์นิเจอร์ชำรุด</label>
+            </div>
+            <div id="assetIssueGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fAssetIssue" placeholder="รายละเอียด">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ตำแหน่งจัดวางตัวโชว์ตาม Schematic</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="schematic" value="เรียบร้อย" onchange="toggleSchematicIssue()"> เรียบร้อย</label>
+              <label class="radio-label"><input type="radio" name="schematic" value="ไม่เรียบร้อย" onchange="toggleSchematicIssue()"> ไม่เรียบร้อย</label>
+            </div>
+            <div id="schematicIssueGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fSchematicIssue" placeholder="เพราะ:">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ป้ายราคา Price/Promotion</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="priceTag" value="ถูกต้อง" onchange="togglePriceTagIssue()"> ถูกต้อง</label>
+              <label class="radio-label"><input type="radio" name="priceTag" value="ไม่ถูกต้อง" onchange="togglePriceTagIssue()"> ไม่ถูกต้อง</label>
+            </div>
+            <div id="priceTagIssueGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fPriceTagIssue" placeholder="เพราะ:">
+            </div>
+          </div>
+        </section>
+
+        <!-- Section 4: Competitors & Issues -->
+        <section class="form-section">
+          <h3 class="section-title">4. ปัญหา / คู่แข่ง / การแก้ไข</h3>
+          <div class="form-group">
+            <label>โปรโมชั่นของคู่แข่ง</label>
+            <textarea id="fCompPromo" rows="2" placeholder="โปรโมชั่นของคู่แข่ง"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Road Show / Booth / กิจกรรมพิเศษของคู่แข่ง</label>
+            <textarea id="fCompActivity" rows="2" placeholder="Road Show / Booth / กิจกรรมพิเศษ"></textarea>
+          </div>
+          <div class="form-group">
+            <label>ระบุปัญหาหลัก</label>
+            <div class="checkbox-group" id="issueCheckboxes">
+              <label class="checkbox-label"><input type="checkbox" value="พื้นที่"> พื้นที่</label>
+              <label class="checkbox-label"><input type="checkbox" value="สต็อก"> สต็อก</label>
+              <label class="checkbox-label"><input type="checkbox" value="ราคา"> ราคา</label>
+              <label class="checkbox-label"><input type="checkbox" value="PC"> PC</label>
+              <label class="checkbox-label"><input type="checkbox" value="กิจกรรมพิเศษคู่แข่ง"> กิจกรรมพิเศษคู่แข่ง</label>
+              <label class="checkbox-label"><input type="checkbox" value="อื่นๆ" onchange="toggleOtherIssue()"> อื่นๆ</label>
+            </div>
+            <div id="otherIssueGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fOtherIssue" placeholder="ระบุอื่นๆ">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Issue / รายละเอียด</label>
+            <textarea id="fIssueDetail" rows="3" placeholder="รายละเอียดปัญหา"></textarea>
+          </div>
+          <div class="form-group">
+            <label>สาเหตุ</label>
+            <textarea id="fCause" rows="2" placeholder="สาเหตุ"></textarea>
+          </div>
+          <div class="form-group">
+            <label>วิธีแก้ไข</label>
+            <textarea id="fSolution" rows="2" placeholder="วิธีแก้ไข"></textarea>
+          </div>
+          <div class="form-group">
+            <label>ผู้รับผิดชอบ / ระยะเวลาแก้ไข</label>
+            <input type="text" id="fResponsible" placeholder="ผู้รับผิดชอบ / ระยะเวลา">
+          </div>
+        </section>
+
+        <!-- Section 5: GM Meeting -->
+        <section class="form-section">
+          <h3 class="section-title">5. เข้าพบ GM / Section Manager</h3>
+          <div class="form-group">
+            <label>เข้าพบ</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="gmMet" value="เข้าเรียบร้อย" onchange="toggleGmMet()"> เข้าเรียบร้อย</label>
+              <label class="radio-label"><input type="radio" name="gmMet" value="ไม่ได้เข้าพบ" onchange="toggleGmMet()"> ไม่ได้เข้าพบ</label>
+            </div>
+            <div id="gmNotMetGroup" class="conditional-field" style="display:none">
+              <input type="text" id="fGmNotMetReason" placeholder="เพราะ...">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>ชื่อผู้ที่เข้าพบ</label>
+            <input type="text" id="fGmName" placeholder="ชื่อผู้ที่เข้าพบ">
+          </div>
+          <div class="form-group">
+            <label>ตำแหน่ง</label>
+            <input type="text" id="fGmPosition" placeholder="ตำแหน่ง">
+          </div>
+          <div class="form-group">
+            <label>Feedback / Issue</label>
+            <textarea id="fGmFeedback" rows="2" placeholder="Feedback / Issue"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Support Needed</label>
+            <textarea id="fGmSupport" rows="2" placeholder="Support Needed"></textarea>
+          </div>
+        </section>
+
+        <!-- Section 6: Summary -->
+        <section class="form-section">
+          <h3 class="section-title">6. สรุปภาพรวมร้าน</h3>
+          <div class="form-group">
+            <label>แนวโน้มยอดขาย Haier</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="haierTrend" value="ดีขึ้น"> ดีขึ้น</label>
+              <label class="radio-label"><input type="radio" name="haierTrend" value="ทรงตัว"> ทรงตัว</label>
+              <label class="radio-label"><input type="radio" name="haierTrend" value="ลดลง"> ลดลง</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>สถานการณ์ยอดขายหน้าร้านโดยรวม</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="storeSituation" value="ดี"> ดี</label>
+              <label class="radio-label"><input type="radio" name="storeSituation" value="ต้องติดตาม"> ต้องติดตาม</label>
+              <label class="radio-label"><input type="radio" name="storeSituation" value="ต้องแก้ไขเร่งด่วน"> ต้องแก้ไขเร่งด่วน</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Key Finding</label>
+            <textarea id="fKeyFinding" rows="2" placeholder="Key Finding"></textarea>
+          </div>
+          <div class="form-group">
+            <label>โอกาส / Action</label>
+            <textarea id="fOpportunity" rows="2" placeholder="โอกาส / Action"></textarea>
+          </div>
+          <div class="form-group">
+            <label>เรื่องที่ต้อง Follow-up</label>
+            <textarea id="fFollowUp" rows="2" placeholder="Follow-up"></textarea>
+          </div>
+        </section>
+
+        <!-- Photos Section -->
+        <section class="form-section">
+          <h3 class="section-title">รูปภาพที่ต้องแนบ</h3>
+          <div id="photoCategories">
+            <div class="photo-category" data-cat="1">
+              <label>1. ภาพรวมหน้าร้าน / ภาพบรรยากาศสาขา</label>
+              <input type="file" accept="image/*" multiple capture="environment" onchange="handlePhotoUpload(this, 'cat1')">
+              <div class="photo-preview" id="preview-cat1"></div>
+            </div>
+            <div class="photo-category" data-cat="2">
+              <label>2. ภาพถ่ายร่วมกับ GM / Section Manager</label>
+              <input type="file" accept="image/*" multiple capture="environment" onchange="handlePhotoUpload(this, 'cat2')">
+              <div class="photo-preview" id="preview-cat2"></div>
+            </div>
+            <div class="photo-category" data-cat="3">
+              <label>3. ภาพพื้นที่ Haier / สินค้าตัวโชว์ / Asset</label>
+              <input type="file" accept="image/*" multiple capture="environment" onchange="handlePhotoUpload(this, 'cat3')">
+              <div class="photo-preview" id="preview-cat3"></div>
+            </div>
+            <div class="photo-category" data-cat="4">
+              <label>4. ภาพ POP / ป้ายราคา / Promotion</label>
+              <input type="file" accept="image/*" multiple capture="environment" onchange="handlePhotoUpload(this, 'cat4')">
+              <div class="photo-preview" id="preview-cat4"></div>
+            </div>
+            <div class="photo-category" data-cat="5">
+              <label>5. ภาพจุดที่มีปัญหา (Before)</label>
+              <input type="file" accept="image/*" multiple capture="environment" onchange="handlePhotoUpload(this, 'cat5')">
+              <div class="photo-preview" id="preview-cat5"></div>
+            </div>
+            <div class="photo-category" data-cat="6">
+              <label>6. ภาพหลังแก้ไข (After) — ไม่บังคับ</label>
+              <input type="file" accept="image/*" multiple capture="environment" onchange="handlePhotoUpload(this, 'cat6')">
+              <div class="photo-preview" id="preview-cat6"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Signature Section -->
+        <section class="form-section">
+          <h3 class="section-title">ลายเซ็น</h3>
+          <div class="form-group">
+            <label>ผู้ตรวจ (PC Supervisor)</label>
+            <input type="text" id="fSignatureSupervisor" readonly class="readonly-field">
+          </div>
+          <div class="form-group">
+            <label>วันที่ตรวจ</label>
+            <input type="text" id="fSignatureDate" readonly class="readonly-field">
+          </div>
+          <div class="form-group">
+            <label>GM / Section Manager (optional)</label>
+            <input type="text" id="fSignatureGm" placeholder="ชื่อ GM หากเข้าพบ">
+          </div>
+        </section>
+
+        <!-- Submit -->
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-block btn-lg" id="btnSubmit">
+            ส่งข้อมูล
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- ==================== PAGE: Submission Confirmation ==================== -->
+    <div id="pageConfirmation" class="page">
+      <div class="confirmation-card">
+        <div class="confirmation-icon">✓</div>
+        <h2>ส่งข้อมูลเรียบร้อย</h2>
+        <p>รอตรวจสอบโดย Admin</p>
+        <div class="confirmation-details" id="confirmDetails"></div>
+        <button class="btn btn-primary btn-block" onclick="resetToLanding()">ตรวจเยี่ยมร้านอื่น</button>
+        <button class="btn btn-outline btn-block" onclick="showMySubmissions()" style="margin-top:8px">ดูผลการตรวจของฉัน</button>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: My Submissions ==================== -->
+    <div id="pageMySubmissions" class="page">
+      <div class="page-content">
+        <div class="page-header">
+          <h2>ผลการตรวจของฉัน</h2>
+          <select id="mySubmissionsFilter" onchange="loadMySubmissions()">
+            <option value="">ทั้งหมด</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+        <div id="mySubmissionsList" class="submissions-list"></div>
+        <button class="btn btn-outline btn-block" onclick="showLanding()" style="margin-top:16px">← กลับหน้าแรก</button>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: Admin Login ==================== -->
+    <div id="pageAdminLogin" class="page">
+      <div class="landing-card">
+        <h2>Admin Login</h2>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="adminPassword" onkeydown="if(event.key==='Enter')adminLogin()">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="adminLogin()">เข้าสู่ระบบ</button>
+        <button class="btn btn-outline btn-block" onclick="showLanding()" style="margin-top:8px">← กลับ</button>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: Admin Dashboard ==================== -->
+    <div id="pageAdminDashboard" class="page">
+      <div class="page-content">
+        <div class="page-header">
+          <h2>Admin Dashboard</h2>
+          <button class="btn btn-sm btn-outline" onclick="adminLogout()">ออกจากระบบ</button>
+        </div>
+
+        <!-- Stats cards -->
+        <div class="stats-grid" id="adminStats"></div>
+
+        <!-- Filters -->
+        <div class="filter-bar">
+          <select id="adminFilterStatus" onchange="loadAdminVisits()">
+            <option value="">ทั้งหมด</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <input type="date" id="adminFilterDateFrom" onchange="loadAdminVisits()">
+          <input type="date" id="adminFilterDateTo" onchange="loadAdminVisits()">
+          <button class="btn btn-sm btn-outline" onclick="exportAdminCSV()">Export CSV</button>
+        </div>
+
+        <!-- Visits table -->
+        <div class="table-container" id="adminVisitsTable"></div>
+
+        <!-- Admin tabs -->
+        <div class="admin-tabs">
+          <button class="tab-btn active" onclick="switchAdminTab('visits')">Visits</button>
+          <button class="tab-btn" onclick="switchAdminTab('supervisors')">Supervisors</button>
+          <button class="tab-btn" onclick="switchAdminTab('stores')">Store Data</button>
+          <button class="tab-btn" onclick="switchAdminTab('import')">Import CSV</button>
+        </div>
+
+        <!-- Supervisors management -->
+        <div id="adminTabSupervisors" class="admin-tab-content" style="display:none">
+          <h3>จัดการ PC Supervisor</h3>
+          <div class="inline-form">
+            <input type="text" id="newSupervisorName" placeholder="ชื่อ Supervisor">
+            <button class="btn btn-primary btn-sm" onclick="addSupervisor()">เพิ่ม</button>
+          </div>
+          <div id="supervisorList"></div>
+        </div>
+
+        <!-- Store Data -->
+        <div id="adminTabStores" class="admin-tab-content" style="display:none">
+          <h3>ข้อมูลร้านค้า (อ่านจาก D1)</h3>
+          <div class="table-container" id="adminStoreTable"></div>
+        </div>
+
+        <!-- Import CSV -->
+        <div id="adminTabImport" class="admin-tab-content" style="display:none">
+          <h3>นำเข้า Dimension_Store.csv</h3>
+          <p>เลือกไฟล์ CSV เพื่ออัปเดตข้อมูลร้านค้าและลูกค้า</p>
+          <input type="file" accept=".csv" id="csvImportFile">
+          <button class="btn btn-primary btn-block" onclick="importCSV()">นำเข้า</button>
+          <div id="importResult"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== PAGE: Admin Visit Detail ==================== -->
+    <div id="pageAdminVisitDetail" class="page">
+      <div class="page-content">
+        <button class="btn btn-outline btn-sm" onclick="backToAdmin()">← กลับ</button>
+        <div id="adminVisitDetail"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
