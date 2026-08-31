@@ -32,7 +32,7 @@ export default {
   async fetch(request, env, ctx) {
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
-      return handleOptions();
+      return handleOptions(request);
     }
 
     const url = new URL(request.url);
@@ -47,7 +47,7 @@ export default {
         console.error('Unhandled error:', err);
         return new Response(JSON.stringify({ error: 'Internal server error', detail: err.message }), {
           status: 500,
-          headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders(request.headers.get('Origin')), 'Content-Type': 'application/json' },
         });
       }
     }
