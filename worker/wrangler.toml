@@ -6,7 +6,7 @@ compatibility_date = "2025-04-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "haier-store-visit-db"
-database_id = ""
+database_id = "a499fad3-6e19-46e2-a171-78c55dc62f89"
 
 # R2 Bucket binding for photo uploads
 [[r2_buckets]]
